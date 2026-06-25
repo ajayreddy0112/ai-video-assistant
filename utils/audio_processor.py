@@ -41,9 +41,27 @@ def _enforce_duration(seconds: float, label: str) -> None:
         )
 
 
+_YDL_COMMON_OPTS = {
+    "quiet": True,
+    "no_warnings": True,
+    "retries": 5,
+    "fragment_retries": 5,
+    "socket_timeout": 30,
+    "nocheckcertificate": True,
+    "geo_bypass": True,
+    "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+    "http_headers": {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        )
+    },
+}
+
+
 def download_youtube_audio(url: str) -> str:
-    probe_opts = {"quiet": True, "no_warnings": True, "skip_download": True}
-    with yt_dlp.YoutubeDL(probe_opts) as ydl:
+    with yt_dlp.YoutubeDL({**_YDL_COMMON_OPTS, "skip_download": True}) as ydl:
         info = ydl.extract_info(url, download=False)
         duration = info.get("duration")
 
@@ -53,6 +71,7 @@ def download_youtube_audio(url: str) -> str:
 
     output_template = os.path.join(str(settings.download_dir), "%(title)s.%(ext)s")
     ydl_opts = {
+        **_YDL_COMMON_OPTS,
         "format": "bestaudio/best",
         "outtmpl": output_template,
         "postprocessors": [
@@ -62,8 +81,6 @@ def download_youtube_audio(url: str) -> str:
                 "preferredquality": "192",
             }
         ],
-        "quiet": True,
-        "no_warnings": True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
