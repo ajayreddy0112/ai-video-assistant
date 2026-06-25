@@ -1,15 +1,60 @@
-import yt_dlp
-from pydub import AudioSegment
+"""Download/convert source media to WAV and slice into manageable chunks."""
+
+from __future__ import annotations
+
+import logging
 import os
 
-DOWNLOAD_DIR = 'downloads'
-os.makedirs(DOWNLOAD_DIR,exist_ok = True)
+import yt_dlp
+from pydub import AudioSegment
 
-def download_youtube_audio(url :str) ->str:
-    output_path = os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s")
+from core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class VideoTooLongError(ValueError):
+    """Raised when source media exceeds the configured maximum duration."""
+
+
+def _is_url(source: str) -> bool:
+    return source.startswith(("http://", "https://"))
+
+
+def safe_remove(path: str | None) -> None:
+    """Best-effort delete — never raises."""
+    if not path:
+        return
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError as e:
+        logger.warning("Could not remove %s: %s", path, e)
+
+
+def _enforce_duration(seconds: float, label: str) -> None:
+    max_seconds = settings.max_video_minutes * 60
+    if seconds > max_seconds:
+        raise VideoTooLongError(
+            f"{label} is {seconds / 60:.1f} min — limit is "
+            f"{settings.max_video_minutes} min. Please trim it and retry."
+        )
+
+
+def download_youtube_audio(url: str) -> str:
+    probe_opts = {"quiet": True, "no_warnings": True, "skip_download": True}
+    with yt_dlp.YoutubeDL(probe_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        duration = info.get("duration")
+
+    if duration is None:
+        raise ValueError("Could not determine video duration. Please try a different URL.")
+    _enforce_duration(float(duration), "Video")
+
+    output_template = os.path.join(str(settings.download_dir), "%(title)s.%(ext)s")
     ydl_opts = {
         "format": "bestaudio/best",
-        "outtmpl": output_path,
+        "outtmpl": output_template,
         "postprocessors": [
             {
                 "key": "FFmpegExtractAudio",
@@ -18,44 +63,51 @@ def download_youtube_audio(url :str) ->str:
             }
         ],
         "quiet": True,
+        "no_warnings": True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info).replace(".webm", ".wav").replace(".m4a", ".wav")
+        filename = ydl.prepare_filename(info)
+        for ext in (".webm", ".m4a", ".mp3", ".opus"):
+            filename = filename.replace(ext, ".wav")
     return filename
 
+
 def convert_to_wav(input_path: str) -> str:
-    """Convert any audio/video file to WAV format using pydub."""
-    output_path = os.path.splitext(input_path)[0] + "_converted.wav"
     audio = AudioSegment.from_file(input_path)
-    audio = audio.set_channels(1).set_frame_rate(16000) #16khz
+    _enforce_duration(audio.duration_seconds, "File")
+    audio = audio.set_channels(1).set_frame_rate(16000)
+    output_path = os.path.splitext(input_path)[0] + "_converted.wav"
     audio.export(output_path, format="wav")
     return output_path
 
-def chunk_audio(wav_path : str , chunk_minutes : int = 10) -> list:
+
+def chunk_audio(wav_path: str, chunk_minutes: int = None) -> list[str]:
     audio = AudioSegment.from_wav(wav_path)
-    chunk_ms = chunk_minutes * 60 * 1000 
+    minutes = chunk_minutes or settings.chunk_minutes
+    chunk_ms = minutes * 60 * 1000
 
-    chunks = []
-
-    for i, start in enumerate(range(0,len(audio),chunk_ms)):
-        chunk = audio[start : start + chunk_ms]
-        chunk_path = f"{os.path.splitext(wav_path)[0]}_chunk_{i}.wav"
-        chunk.export(chunk_path , format = "wav")
-
+    chunks: list[str] = []
+    base = os.path.splitext(wav_path)[0]
+    for i, start in enumerate(range(0, len(audio), chunk_ms)):
+        chunk_path = f"{base}_chunk_{i}.wav"
+        audio[start : start + chunk_ms].export(chunk_path, format="wav")
         chunks.append(chunk_path)
-    
     return chunks
 
-def process_input(source: str) -> list:
-    if source.startswith("http://") or source.startswith("https://"):
-        print("Detected YouTube URL. Downloading audio...")
+
+def process_input(source: str) -> list[str]:
+    if _is_url(source):
+        logger.info("Detected URL — downloading audio")
         wav_path = download_youtube_audio(source)
     else:
-        print("Detected local file. Converting to WAV...")
+        logger.info("Detected local file — converting to WAV")
         wav_path = convert_to_wav(source)
 
-    print("Chunking audio...")
-    chunks = chunk_audio(wav_path)
-    print(f"Audio ready — {len(chunks)} chunk(s) created.")
-    return chunks
+    try:
+        logger.info("Chunking audio")
+        chunks = chunk_audio(wav_path)
+        logger.info("Audio ready — %d chunk(s)", len(chunks))
+        return chunks
+    finally:
+        safe_remove(wav_path)

@@ -1,63 +1,61 @@
-from dotenv import load_dotenv
-from utils.audio_processor import process_input
+"""CLI entry point. Run the full pipeline against a URL or local file."""
+
+from __future__ import annotations
+
+from core.config import setup_logging
+from core.extractor import (
+    extract_action_items,
+    extract_key_decisions,
+    extract_questions,
+)
+from core.rag_engine import ask_question, build_rag_chain
+from core.summarizer import generate_title, summarize
 from core.transcriber import transcribe_all
-from core.summarizer import summarize, generate_title
-from core.extractor import extract_action_items, extract_key_decisions, extract_questions
-from core.rag_engine import build_rag_chain, ask_question
+from utils.audio_processor import process_input
 
 
-load_dotenv()
-
-def run_pipeline(source :str, language :str = "english") -> dict:
-    print("starting AI Video Assistant")
-
+def run_pipeline(source: str, language: str = "english") -> dict:
     chunks = process_input(source)
-
-    transcript = transcribe_all(chunks,language)
-    print(f"raw transcription (first 300 characters ) {transcript[:300]}")
-
-    title = generate_title(transcript)
-    summary = summarize(transcript)
-
-    action_item = extract_action_items(transcript)
-    decisions = extract_key_decisions(transcript)
-    questions = extract_questions(transcript)
-    
-    rag_chain = build_rag_chain(transcript)
-
+    transcript = transcribe_all(chunks, language)
     return {
-        "title": title,
+        "title": generate_title(transcript),
         "transcript": transcript,
-        "summary": summary,
-        "action_items": action_item,
-        "key_decisions": decisions,
-        "open_questions": questions,
-        "rag_chain": rag_chain,
+        "summary": summarize(transcript),
+        "action_items": extract_action_items(transcript),
+        "key_decisions": extract_key_decisions(transcript),
+        "open_questions": extract_questions(transcript),
+        "rag_chain": build_rag_chain(transcript),
     }
 
-if __name__ == "__main__":
-    # CLI entry point
+
+def main() -> None:
+    setup_logging()
     source = input("Enter YouTube URL or local file path: ").strip()
-    language = input("Language (english/hinglish): ").strip() or "english"
+    language = input("Language (english/hinglish) [english]: ").strip() or "english"
     result = run_pipeline(source, language)
 
-    print("\n" + "=" * 60)
-    print(f"📌 Title: {result['title']}")
+    sep = "=" * 60
+    print(f"\n{sep}\n📌 Title: {result['title']}")
     print(f"\n📋 Summary:\n{result['summary']}")
     print(f"\n✅ Action Items:\n{result['action_items']}")
     print(f"\n🔑 Key Decisions:\n{result['key_decisions']}")
-    print(f"\n❓ Open Questions:\n{result['open_questions']}")
-    print("=" * 60)
+    print(f"\n❓ Open Questions:\n{result['open_questions']}\n{sep}")
 
-    # Phase 2 — Chat with your meeting via RAG
     print("\n💬 Chat with your meeting (type 'exit' to quit)\n")
     rag_chain = result["rag_chain"]
+    history: list[dict] = []
     while True:
         question = input("You: ").strip()
-        if question.lower() in ["exit", "quit", "q"]:
+        if question.lower() in {"exit", "quit", "q"}:
             print("👋 Goodbye!")
             break
         if not question:
             continue
-        answer = ask_question(rag_chain, question)
-        print(f"\n🤖 Assistant: {answer}\n")
+        out = ask_question(rag_chain, question, history)
+        print(f"\n🤖 Assistant: {out['answer']}\n")
+        history.append({"role": "user", "content": question})
+        history.append({"role": "assistant", "content": out["answer"]})
+
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,7 @@
 # Environments
 .env
 .env.*
+!.env.example
 .venv/
 venv/
 env/
@@ -30,5 +31,15 @@ htmlcov/
 *.swp
 .DS_Store
 
+# Runtime data
 downloads/
-vector_db/
+*.wav
+*.mp3
+*.mp4
+*.m4a
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Misc
+*.log

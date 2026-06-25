@@ -1,57 +1,63 @@
-import os 
-from langchain_chroma import Chroma 
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+"""In-memory Chroma + sentence-transformers vector store for RAG retrieval.
+
+We keep the store in-memory so each pipeline run gets a fresh, isolated index.
+The store is held alive by the LCEL chain returned from rag_engine.build_rag_chain,
+which lives in st.session_state for the duration of the user's session.
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from functools import lru_cache
+
+from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-CHROMA_DIR = "vector_db"
-COLLECTION_NAME = "meeting_transcript"
-EMBEDDING_MODEL  = "all-MiniLM-L6-v2"
+from core.config import settings
 
-def get_embeddings():
+logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def get_embeddings() -> HuggingFaceEmbeddings:
     return HuggingFaceEmbeddings(
-        model_name = EMBEDDING_MODEL,
-        model_kwargs = {"device" : 'cpu'}
+        model_name=settings.embedding_model,
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"normalize_embeddings": True},
     )
 
-def build_vector_store(transcript : str)->Chroma:
-    print("Building vector Store")
+
+def build_vector_store(transcript: str) -> Chroma:
+    logger.info("Building in-memory vector store")
 
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size = 500,
-        chunk_overlap = 50
+        chunk_size=settings.rag_chunk_size,
+        chunk_overlap=settings.rag_chunk_overlap,
+        separators=["\n\n", "\n", ". ", "? ", "! ", "; ", ", ", " ", ""],
     )
-    chunks = splitter.split_text(transcript)
-
     docs = [
-        Document(page_content=chunk, metadata = {'chunk_index' : i})
-        for i,chunk in enumerate(chunks)
+        Document(page_content=chunk, metadata={"chunk_index": i})
+        for i, chunk in enumerate(splitter.split_text(transcript))
     ]
+    logger.info("Indexed %d chunk(s)", len(docs))
 
-    embeddings = get_embeddings()
-    vector_store = Chroma.from_documents(
-        documents= docs,
-        embedding=embeddings,
-        collection_name=COLLECTION_NAME,
-        persist_directory=CHROMA_DIR
+    return Chroma.from_documents(
+        documents=docs,
+        embedding=get_embeddings(),
+        collection_name=f"meeting_{uuid.uuid4().hex[:8]}",
     )
 
-    return vector_store
 
-
-
-def load_vector_store() ->Chroma:
-    embeddings = get_embeddings()
-    vector_store = Chroma(
-        collection_name=COLLECTION_NAME,
-        embedding_function= embeddings,
-        persist_directory=CHROMA_DIR
-    )
-
-    return vector_store
-
-def get_retriever(vector_store : Chroma, k :int = 4):
-    return vector_store.as_retriever(
-        search_type = 'similarity',
-        search_kwargs = {"k":k}
+def get_retriever(store: Chroma, k: int | None = None):
+    """MMR retriever — returns diverse, relevant chunks instead of near-duplicates."""
+    return store.as_retriever(
+        search_type="mmr",
+        search_kwargs={
+            "k": k or settings.rag_top_k,
+            "fetch_k": settings.rag_fetch_k,
+            "lambda_mult": settings.rag_mmr_lambda,
+        },
     )
