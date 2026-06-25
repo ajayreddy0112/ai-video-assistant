@@ -12,6 +12,8 @@ short_description: Transcribe, summarise and chat with any meeting video.
 
 # 🎬 AI Video Assistant
 
+🚀 **Live demo**: [ajayreddy0112-ai-video-assistant.hf.space](https://ajayreddy0112-ai-video-assistant.hf.space)
+
 > Transcribe, summarise and chat with any meeting video — Whisper + LangChain RAG, wrapped in a Streamlit UI.
 
 Paste a YouTube URL or upload a short meeting video (≤ 20 min) and get:
