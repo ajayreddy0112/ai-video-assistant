@@ -39,6 +39,7 @@ _DEFAULT_STATE = {
     "result": None,
     "chat_history": [],
     "pipeline_steps": {},
+    "trigger_sample": False,
 }
 for k, v in _DEFAULT_STATE.items():
     st.session_state.setdefault(k, v)
@@ -52,6 +53,9 @@ PIPELINE_STEPS = [
     ("extract", "🔍", "Extraction"),
     ("rag", "🧠", "RAG Indexing"),
 ]
+
+SAMPLE_VIDEO_PATH = Path(__file__).parent / "samples" / "fake_meeting.mp4"
+HAS_SAMPLE = SAMPLE_VIDEO_PATH.exists()
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -170,12 +174,21 @@ def _set_step(key: str, state: str) -> None:
     _render_status(status_slot)
 
 
-if run_btn:
-    source = _resolve_source()
+trigger_run = run_btn or st.session_state.trigger_sample
+
+if trigger_run:
+    is_sample = st.session_state.trigger_sample
+    st.session_state.trigger_sample = False
+
+    if is_sample:
+        source = str(SAMPLE_VIDEO_PATH)
+    else:
+        source = _resolve_source()
+
     if not source:
         st.error("Please provide a URL or upload a file.")
     else:
-        upload_temp = source if input_mode == "Upload" else None
+        upload_temp = source if (input_mode == "Upload" and not is_sample) else None
 
         if st.session_state.result and st.session_state.result.get("rag_chain"):
             prev = st.session_state.result["rag_chain"]
@@ -421,13 +434,14 @@ else:
     # ── Empty state ─────────────────────────────────────────────────────────
     st.markdown(
         """
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5rem 2rem;text-align:center">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4rem 2rem 1.5rem;text-align:center">
         <div style="font-size:4rem;margin-bottom:1rem">🎬</div>
         <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:700;color:var(--text);margin-bottom:0.5rem">
             Ready to Analyse
         </div>
-        <div style="color:var(--text-muted);font-size:0.85rem;max-width:380px;line-height:1.7">
-            Paste a YouTube URL or upload an audio/video file in the sidebar, choose your language, and hit <strong>Analyse</strong> to get started.
+        <div style="color:var(--text-muted);font-size:0.85rem;max-width:420px;line-height:1.7">
+            Upload an audio/video file in the sidebar (or paste a YouTube URL),
+            choose your language, and hit <strong>Analyse</strong>.
         </div>
         <div style="margin-top:2rem;display:flex;gap:1rem;flex-wrap:wrap;justify-content:center">
             <span class="badge badge-purple">Whisper / Sarvam</span>
@@ -437,3 +451,29 @@ else:
     </div>""",
         unsafe_allow_html=True,
     )
+
+    if HAS_SAMPLE:
+        st.markdown(
+            """
+        <div style="display:flex;align-items:center;justify-content:center;gap:1rem;margin:1.5rem 0 0.75rem;color:var(--text-muted);font-size:0.7rem;letter-spacing:0.2em">
+            <div style="flex:1;max-width:160px;height:1px;background:var(--border)"></div>
+            <span>OR TRY THE DEMO</span>
+            <div style="flex:1;max-width:160px;height:1px;background:var(--border)"></div>
+        </div>""",
+            unsafe_allow_html=True,
+        )
+        col_l, col_c, col_r = st.columns([1, 2, 1])
+        with col_c:
+            if st.button(
+                "🎬  Try a sample meeting (1 min, no upload needed)",
+                use_container_width=True,
+                key="sample_btn",
+            ):
+                st.session_state.trigger_sample = True
+                st.rerun()
+        st.markdown(
+            '<div style="text-align:center;color:var(--text-muted);font-size:0.72rem;'
+            'margin-top:0.5rem">A bundled 1-minute mock product sync with named'
+            ' attendees, action items, decisions and open questions.</div>',
+            unsafe_allow_html=True,
+        )

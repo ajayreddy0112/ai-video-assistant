@@ -37,6 +37,9 @@ downloads/
 *.mp3
 *.mp4
 *.m4a
+# Keep the bundled demo sample
+!samples/
+!samples/**
 
 # Streamlit
 .streamlit/secrets.toml

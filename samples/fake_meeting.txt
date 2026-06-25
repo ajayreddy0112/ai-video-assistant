@@ -1,0 +1,11 @@
+Hey everyone, thanks for joining. This is our weekly product sync. Let's start with the Q3 launch plan.
+
+So the main update from engineering is that the new pricing page is now feature complete. Priya pushed the final changes yesterday. We need someone to handle the QA pass — Rahul, can you take that by Friday?
+
+On marketing, Anjali presented three concepts for the launch campaign. We discussed them at length and the team agreed to go with concept two — the one focused on cost savings. Anjali will refine the copy and have a v2 ready by next Wednesday.
+
+We also talked about pricing. The proposal was to raise the Pro plan from forty nine dollars to fifty nine. After some debate, we decided to delay that decision until we see July's churn numbers. Priya will pull the dashboard and share it in the next sync.
+
+Open questions: should we offer an annual discount? And how do we handle existing customers — grandfather them or migrate? We did not resolve these today. Let's revisit next week.
+
+That's it from me. Anything else? No? Great, see you all next week.
