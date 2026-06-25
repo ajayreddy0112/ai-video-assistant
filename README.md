@@ -16,6 +16,8 @@ short_description: Transcribe, summarise and chat with any meeting video.
 
 > Transcribe, summarise and chat with any meeting video — Whisper + LangChain RAG, wrapped in a Streamlit UI.
 
+> ℹ️ **On the live demo, use the Upload tab.** YouTube blocks cloud-hosted IPs (HF Spaces, AWS, etc.) so URL mode is best used locally. Upload any short audio/video file to try the full pipeline.
+
 Paste a YouTube URL or upload a short meeting video (≤ 20 min) and get:
 
 - 📝 **Full transcript** (Whisper for English, Sarvam STT for Hinglish → English)

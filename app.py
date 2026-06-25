@@ -100,7 +100,7 @@ with st.sidebar:
     st.markdown('<span class="badge badge-purple">Source</span>', unsafe_allow_html=True)
     input_mode = st.radio(
         "Input mode",
-        ["URL", "Upload"],
+        ["Upload", "URL"],
         horizontal=True,
         label_visibility="collapsed",
     )
@@ -112,6 +112,11 @@ with st.sidebar:
             "YouTube URL or path",
             placeholder="https://youtube.com/watch?v=…",
             label_visibility="collapsed",
+        )
+        st.caption(
+            "⚠️ YouTube blocks cloud-hosted IPs (HF Spaces, AWS, etc.). "
+            "URL mode may fail here — works reliably **locally**. "
+            "**Upload mode** is recommended for the live demo."
         )
     else:
         uploaded_file = st.file_uploader(
