@@ -3,11 +3,11 @@ title: AI Video Assistant
 emoji: 🎬
 colorFrom: purple
 colorTo: indigo
-sdk: streamlit
-sdk_version: "1.35.0"
-app_file: app.py
+sdk: docker
+app_port: 7860
 pinned: false
 license: mit
+short_description: Transcribe, summarise and chat with any meeting video.
 ---
 
 # 🎬 AI Video Assistant
